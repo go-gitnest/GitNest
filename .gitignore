@@ -1,0 +1,14 @@
+# Go build output
+/bin/
+
+# Built React assets; generated during a release build
+web/dist/
+
+# Local runtime data
+/repositories/
+
+# Local development scratch data (Go build caches, temporary database clusters)
+/.tmp/
+
+# I dont need it now
+/docs/

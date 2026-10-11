@@ -1,0 +1,3 @@
+# Keep line endings consistent so `gofmt -l` and the CI formatting check agree
+# on every platform.
+* text=auto eol=lf
