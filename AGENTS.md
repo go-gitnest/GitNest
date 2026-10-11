@@ -26,7 +26,7 @@ Do not start work from a phase whose dependencies are not met. The dependency or
 
 If you are hanging a persisted goal on this repository, use an objective with this shape:
 
-> Continue the GitNest implementation plan in docs/implementation-plan.md. Work the "Immediate next work" items in order, then continue through the active phase's roadmap file. For each workstream: implement it, keep authorization in shared application services, add tests covering allowed and denied paths, run the verification commands in AGENTS.md, and update the phase status and progress notes in docs/implementation-plan.md. Never commit or push; leave the working tree ready for the maintainer to review. Stop and ask the maintainer when a workstream would contradict docs/product-goals.md, change a decided exclusion, or require a product decision the documents do not answer.
+> Continue the GitNest implementation plan in docs/implementation-plan.md. Work the "Immediate next work" items in order, then continue through the active phase's roadmap file. For each workstream: implement it, keep authorization in shared application services, add tests covering allowed and denied paths, run the verification commands in AGENTS.md, update the workstream status and the phase table in docs/implementation-plan.md, and tick the matching lines in docs/parity-checklist.md — but only the lines whose acceptance criteria actually pass, never ahead of the work. Never commit or push; leave the working tree ready for the maintainer to review. Stop and ask the maintainer when a workstream would contradict docs/product-goals.md, change a decided exclusion, or require a product decision the documents do not answer.
 
 ## Round protocol
 
@@ -37,7 +37,7 @@ Each round of work does exactly this:
 3. **Implement.** Follow the existing code's conventions. Look at a neighbouring package before inventing a new pattern.
 4. **Test.** Add or extend tests beside the code. Cover the denied path and the persistence or concurrency behaviour, not only the happy path.
 5. **Verify.** Run the verification commands below and read the actual output. A claim of success without command output is not evidence.
-6. **Update the documents.** Set the workstream's status, and update the phase table in `docs/implementation-plan.md`. If a decision changed, update `docs/product-goals.md` and `docs/architecture.md` in the same change. If the change alters commands, configuration, or upgrade behaviour, update `README.md`.
+6. **Update the documents.** Set the workstream's status in its roadmap file, update the phase table in `docs/implementation-plan.md`, and tick the matching lines in `docs/parity-checklist.md`. Tick only what this change actually finished and verified; leave everything else unticked and say so in the report. If the change alters commands, configuration, or upgrade behaviour, update `README.md`.
 7. **Report.** State what changed, which files, the exact verification output, and what is next.
 
 ## Verification commands
@@ -75,6 +75,11 @@ See "Definition of done for a feature" in [docs/product-goals.md](docs/product-g
 
 ## Hard rules
 
+- **Tick a parity checkbox only in the change that finishes it.** [docs/parity-checklist.md](docs/parity-checklist.md) is the record of what exists. Move a line from `- [ ]` to `- [x]` in the same change that makes its acceptance criteria pass, and only then.
+  - Never tick ahead of the work, and never tick because the code "mostly" works.
+  - Never tick a box whose passing evidence you cannot show in the report.
+  - Never leave a finished item unticked: an unticked box for working code is as wrong as a ticked box for missing code.
+  - If a ticked item later regresses, untick it in the same change that reveals the regression, and say so.
 - **Never commit, push, or create tags.** The maintainer reviews and commits. Leave the working tree with the change in place and describe it.
 - **Never edit a migration that may already have been applied.** Add a new forward-only file in `migrations/`.
 - **Never answer an authorization question in a transport.** Browser, REST, GraphQL, HTTPS Git, SSH Git, and package registries all call the same shared service.
@@ -107,4 +112,10 @@ These are known constraints of the development environment, recorded so they are
 
 ## Progress ledger
 
-The authoritative status is the "Current status" table and the active phase's workstream table in [docs/implementation-plan.md](docs/implementation-plan.md). Update them at the end of every round. Keep "implemented", "partly implemented", and "not started" honest: a phase with a working subset is "in progress", never "implemented".
+Three records must agree at the end of every round:
+
+1. The "Current status" phase table and the active phase's workstream statuses in [docs/implementation-plan.md](docs/implementation-plan.md).
+2. The `- [x]` state of [docs/parity-checklist.md](docs/parity-checklist.md).
+3. The code in the working tree.
+
+A round that updates one without the others is unfinished. Keep "implemented", "partly implemented", and "not started" honest: a phase with a working subset is "in progress", never "implemented". A parity box is the strongest of the three claims, so it is the last to be made and the first to be withdrawn.
