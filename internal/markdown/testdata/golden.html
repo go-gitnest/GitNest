@@ -1,0 +1,84 @@
+<h1>Golden fixture</h1>
+<p>This file exercises <strong>every</strong> element the allowlist permits and every control the
+sanitizer exists for. It is rendered by <code>TestTheGoldenFileMatches</code>, which fails when the
+output changes — so a change to an extension, to the policy, or to the escaping has to be
+an intentional update here <strong>and</strong> a bump to <code>markdown.Version</code>, which is what actually
+invalidates a deployed cache.</p>
+<h2>Text and emphasis</h2>
+<p>Plain prose with an ampersand: Tom &amp; Jerry. Text with angle brackets: &lt;not-a-tag&gt;.
+<em>Italic</em>, <strong>bold</strong>, <em><strong>both</strong></em>, <del>struck through</del>, and <code>an inline code span</code>.</p>
+<p>A soft
+break, and a hard break after this line.<br>
+The line after a hard break.</p>
+<h2>Links</h2>
+<p>An <a href="https://example.com" title="with a title" rel="nofollow noreferrer">external link</a>, a <a href="/alice/other-repo">relative link</a>,
+an <a href="#text-and-emphasis">anchor</a>, and a <a href="mailto:person@example.com">mailto link</a>.</p>
+<p>An autolinked URL: <a href="https://example.com/auto" rel="nofollow noreferrer">https://example.com/auto</a> and an autolinked address: <a href="mailto:mail@example.com">mail@example.com</a>.</p>
+<h2>Lists</h2>
+<ul>
+<li>first item</li>
+<li>second item with <code>code</code>
+<ul>
+<li>a nested item</li>
+</ul>
+</li>
+</ul>
+<ol>
+<li>ordered one</li>
+<li>ordered two</li>
+</ol>
+<h3>Task list</h3>
+<ul>
+<li><input checked="" disabled="" type="checkbox"> a completed task</li>
+<li><input disabled="" type="checkbox"> an outstanding task</li>
+</ul>
+<h2>Blocks</h2>
+<blockquote>
+<p>A blockquote, which may span
+more than one line.</p>
+</blockquote>
+<pre><code>// A fenced code block with a language.
+func main() {
+	println(&#34;hello&#34;)
+}
+</code></pre>
+<pre><code>A fenced block with no language.
+</code></pre>
+<hr>
+<h2>Table</h2>
+<table>
+<thead>
+<tr>
+<th>Left</th>
+<th>Center</th>
+<th>Right</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+<td>c</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td><strong>e</strong></td>
+<td><em>f</em></td>
+</tr>
+</tbody>
+</table>
+<h2>Raw HTML, which is escaped rather than executed</h2>
+<p>A script block:</p>
+&lt;script&gt;alert(&#39;this must never execute&#39;)&lt;/script&gt;
+<p>An inline handler: &lt;img src=&#34;x&#34; onerror=&#34;alert(&#39;neither must this&#39;)&#34;&gt;</p>
+<p>An iframe: &lt;iframe src=&#34;https://evil.example&#34;&gt;&lt;/iframe&gt;</p>
+<p>A comment: &lt;!-- which must not survive --&gt;</p>
+<p>An SVG script: &lt;svg&gt;&lt;script&gt;alert(&#39;nor this&#39;)&lt;/script&gt;&lt;/svg&gt;</p>
+<p>An event handler on a div: &lt;div onclick=&#34;alert(&#39;nor this&#39;)&#34;&gt;click&lt;/div&gt;</p>
+<h2>Dangerous link targets, whose attributes must be removed</h2>
+<p>A javascript link, a data link,
+and a vbscript link.</p>
+<p>A markdown image with a data URL: <img alt="x"></p>
+<p>A relative image, which is permitted: <img src="/alice/other-repo/raw/main/image.png" alt="alt text"></p>
+<h2>Characters that must survive</h2>
+<p>Non-ASCII text: 日本語, ünïcödé, ← arrows, and an emoji.</p>

@@ -1,0 +1,267 @@
+# Continuous integration for the Go service.
+#
+# The job names match docs/architecture/packaging.md section 9, so a job named
+# in a runbook can be found here. The jobs that need the frontend toolchain or a
+# built container image are added by the phase 1 workstreams that introduce
+# them, together with the container image itself.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # A missing or inconsistent go.mod must fail the build, not be repaired
+  # silently in CI.
+  GOFLAGS: -mod=readonly
+
+jobs:
+  go-format-vet:
+    name: Format and vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l cmd internal migrations)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Vet
+        run: go vet ./...
+
+  web-build:
+    name: Web assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: npm ci
+      - name: Typecheck
+        working-directory: web
+        run: npm run typecheck
+      - name: Lint hardcoded strings
+        working-directory: web
+        run: npm run lint:strings
+      # The accessibility checks are a release gate, so a violation fails here.
+      - name: Test
+        working-directory: web
+        run: npm test
+      # The build runs before the Go jobs, because the Go binary embeds its
+      # output: a build with no assets still compiles, but the interactive
+      # surfaces report that the frontend is not built.
+      - name: Build
+        working-directory: web
+        run: npm run build
+      - name: Upload the built assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+
+  web-bundle-size:
+    name: Bundle size budget
+    runs-on: ubuntu-latest
+    needs: web-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      - name: Check the documented budget
+        run: |
+          # docs/architecture/performance.md states the budget for the
+          # interactive bundle. A build that exceeds it fails here rather than in
+          # a reader's browser.
+          budget=200000
+          total=$(find web/dist/assets -name '*.js' -exec cat {} + | wc -c)
+          echo "javascript bytes: $total (budget $budget)"
+          if [ "$total" -gt "$budget" ]; then
+            echo "the interactive bundle exceeds its documented budget"
+            exit 1
+          fi
+
+  go-build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: web-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      - run: go build ./...
+
+  go-test-unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    needs: web-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # The built assets are downloaded rather than skipped, so the shell handler
+      # is exercised against a real build in this job as well as in the
+      # integration job.
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      # Without GITNEST_TEST_DATABASE_URL the database-backed tests skip, which
+      # is what this job wants: it proves the suite passes with no infrastructure.
+      - name: Test
+        run: go test -race ./...
+
+  container-build:
+    name: Container image
+    runs-on: ubuntu-latest
+    needs: web-build
+    steps:
+      - uses: actions/checkout@v4
+      # `container-build` is named by docs/architecture/packaging.md section 9 as
+      # required before the first frontend workstream is accepted: "The multi-stage
+      # Dockerfile builds and the image starts, reaches ready, and serves `/`".
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: gitnest:ci
+      # The runtime image must not carry Node.js: it is a build-time dependency only,
+      # and the release smoke test checks exactly this.
+      - name: Assert no Node.js in the runtime image
+        run: |
+          if docker run --rm --entrypoint sh gitnest:ci -c 'command -v node' >/dev/null 2>&1; then
+            echo "the runtime image contains Node.js, which is a build-time dependency only"
+            exit 1
+          fi
+          echo "no Node.js in the runtime image"
+      - name: Assert the binary runs in the image
+        run: docker run --rm gitnest:ci version
+      # A real PostgreSQL, because readiness means the database is reachable and a check
+      # against nothing would pass for the wrong reason.
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name pg --network host \
+            -e POSTGRES_USER=gitnest -e POSTGRES_PASSWORD=gitnest -e POSTGRES_DB=gitnest \
+            postgres:18
+          for i in $(seq 1 30); do
+            if docker run --rm --network host postgres:18 \
+                 pg_isready -h 127.0.0.1 -p 5432 -U gitnest; then break; fi
+            sleep 2
+          done
+      - name: Migrate, then start and probe
+        run: |
+          set -eu
+          DSN="postgres://gitnest:gitnest@127.0.0.1:5432/gitnest?sslmode=disable"
+          docker run --rm --network host \
+            -e GITNEST_DATABASE_URL="$DSN" \
+            -e GITNEST_DATA_DIR=/var/lib/gitnest \
+            gitnest:ci migrate
+
+          docker run -d --name gitnest --network host \
+            -e GITNEST_DATABASE_URL="$DSN" \
+            -e GITNEST_PUBLIC_URL=http://127.0.0.1:8080 \
+            -e GITNEST_DATA_DIR=/var/lib/gitnest \
+            gitnest:ci serve
+
+          # Readiness is the gate, because it reports database availability.
+          for i in $(seq 1 30); do
+            if docker run --rm --network host --entrypoint /usr/local/bin/gitnest \
+                 gitnest:ci health --url http://127.0.0.1:8080 --ready; then
+              echo "the instance reached readiness"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the instance never reached readiness"
+          docker logs gitnest
+          exit 1
+      - name: Show the container log
+        if: always()
+        run: docker logs gitnest || true
+  go-test-integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          # The same user, password, and database as the compiled default of
+          # GITNEST_DATABASE_URL and compose.yaml.
+          POSTGRES_USER: gitnest
+          POSTGRES_PASSWORD: gitnest
+          POSTGRES_DB: gitnest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gitnest -d gitnest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GITNEST_TEST_DATABASE_URL: postgres://gitnest:gitnest@127.0.0.1:5432/gitnest?sslmode=disable
+      # A job that requires PostgreSQL fails when it is missing instead of
+      # reporting success while every database-backed test skipped.
+      GITNEST_TEST_REQUIRE: postgres
+      # Bound how many schemas one test binary holds, so parallel packages stay
+      # inside the service container's connection limit.
+      GITNEST_TEST_DB_CONCURRENCY: "4"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test against PostgreSQL
+        run: go test -race ./...
+
+  compose-postgres:
+    name: Development database recipe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Validates the file and proves a contributor's documented commands work,
+      # including that the service reports healthy rather than merely started.
+      - name: Validate and start the recipe
+        run: |
+          docker compose config --quiet
+          docker compose up -d --wait postgres
+          docker compose ps
+      - name: Connect with the documented credentials
+        run: |
+          docker compose exec -T postgres \
+            psql -U gitnest -d gitnest -c 'SELECT 1;'
+      - name: Remove the recipe and its data
+        if: always()
+        run: docker compose down -v

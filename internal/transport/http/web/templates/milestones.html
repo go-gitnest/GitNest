@@ -1,0 +1,146 @@
+{{- /* The repository's milestones, with the management controls for a writer. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ T "milestones.heading" }} — {{ .FullName }}</h1>
+
+  {{ if eq .Outcome "saved" }}<p role="status" class="status">{{ T "issues.action.saved" }}</p>{{ end }}
+
+  {{- /*
+    **The progress is text, not a bar, and two rules in `frontend.md` decide it**: "No inline style strings
+    assembled from user data" forbids the `width` a bar needs, and "Colour is never the only carrier of
+    meaning" would be violated by a bar whose length is the only statement of progress. So the counts and
+    the percentage are rendered as a sentence, which is legible to every reader and needs no style.
+
+    "overdue" is likewise a **word** rather than a red date, for the same second rule.
+  */ -}}
+  {{ if .Milestones }}
+  <ul>
+    {{ range .Milestones }}
+    <li>
+      <a href="{{ .Href }}">{{ .Title }}</a>
+      {{ if eq .State "open" }}
+      <span>{{ T "milestones.state.open" }}</span>
+      {{ else }}
+      <span>{{ T "milestones.state.closed" }}</span>
+      {{ end }}
+      {{- /* The counts, stated as a sentence rather than drawn. */ -}}
+      <span>{{ T "milestones.progress" .Counts.Closed .Counts.Total .Counts.PercentComplete }}</span>
+      {{ if .DueText }}
+      <time datetime="{{ .DueText }}">{{ .DueText }}</time>
+      {{ else }}
+      <span>{{ T "milestones.no_due" }}</span>
+      {{ end }}
+      {{- /* Overdue is a word, so it is not carried by a colour alone. */ -}}
+      {{ if .Overdue }}<strong>{{ T "milestones.overdue" }}</strong>{{ end }}
+      {{ if .Description }}<p>{{ .Description }}</p>{{ end }}
+
+      {{ if .CanManage }}
+      {{- /*
+        The edit form carries the values the milestone has, so a reader sees what they are changing. It
+        carries no version, because a milestone has none: the two fields a concurrent edit could lose are a
+        title and a description, and the title's uniqueness is a constraint rather than a version — so the
+        loser of a race is told the title is taken rather than silently overwriting.
+      */ -}}
+      <details>
+        <summary>{{ T "milestones.edit" }}</summary>
+        <form method="post" action="{{ $.Action }}" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ $.Form.CSRF }}">
+          <input type="hidden" name="action" value="milestone.update">
+          <input type="hidden" name="milestone_number" value="{{ .Number }}">
+          <p>
+            <label for="milestone-{{ .Number }}-title">{{ T "milestones.title" }}</label>
+            <input id="milestone-{{ .Number }}-title" name="milestone_title" type="text" required
+                   value="{{ if .EditTitle }}{{ .EditTitle }}{{ else }}{{ .Title }}{{ end }}">
+          </p>
+          <p>
+            <label for="milestone-{{ .Number }}-description">{{ T "milestones.description" }}</label>
+            <input id="milestone-{{ .Number }}-description" name="milestone_description" type="text"
+                   value="{{ if .EditDescription }}{{ .EditDescription }}{{ else }}{{ .Description }}{{ end }}">
+          </p>
+          <p>
+            <label for="milestone-{{ .Number }}-due">{{ T "milestones.due" }}</label>
+            <input id="milestone-{{ .Number }}-due" name="milestone_due_on" type="text"
+                   value="{{ if .EditDueDate }}{{ .EditDueDate }}{{ else }}{{ .DueText }}{{ end }}"
+                   placeholder="2026-10-14" aria-describedby="milestone-due-hint">
+          </p>
+          <p><button type="submit">{{ T "milestones.save" }}</button></p>
+        </form>
+
+        {{- /*
+          The state control: closing is one form and reopening another, because a form names one action.
+        */ -}}
+        <form method="post" action="{{ $.Action }}">
+          <input type="hidden" name="csrf_token" value="{{ $.Form.CSRF }}">
+          <input type="hidden" name="milestone_number" value="{{ .Number }}">
+          {{ if eq .State "open" }}
+          <input type="hidden" name="action" value="milestone.close">
+          <button type="submit">{{ T "milestones.close" }}</button>
+          {{ else }}
+          <input type="hidden" name="action" value="milestone.reopen">
+          <button type="submit">{{ T "milestones.reopen" }}</button>
+          {{ end }}
+        </form>
+
+        <form method="post" action="{{ $.Action }}">
+          <input type="hidden" name="csrf_token" value="{{ $.Form.CSRF }}">
+          <input type="hidden" name="action" value="milestone.delete">
+          <input type="hidden" name="milestone_number" value="{{ .Number }}">
+          <span class="hint">{{ T "milestones.delete_hint" }}</span>
+          <button type="submit">{{ T "milestones.delete" }}</button>
+        </form>
+      </details>
+      {{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ else }}
+  <p>{{ T "milestones.empty" }}</p>
+  {{ end }}
+
+  {{ if .Form.CanManage }}
+  <h2>{{ T "milestones.create" }}</h2>
+  {{- /*
+    The summary exists whenever anything failed, including a refusal tied to one field, which is the defect
+    both the issue and label forms carried before it was fixed.
+  */ -}}
+  {{ if or .Form.Error .Form.TitleError .Form.DueError }}
+  <div role="alert" class="error-summary">
+    {{ if .Form.Error }}{{ .Form.Error }}{{ else if .Form.TitleError }}{{ .Form.TitleError }}{{ else }}{{ .Form.DueError }}{{ end }}
+  </div>
+  {{ end }}
+
+  <form method="post" action="{{ .Action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ .Form.CSRF }}">
+    <input type="hidden" name="action" value="milestone.create">
+
+    <p>
+      <label for="milestone-title">{{ T "milestones.title" }}</label>
+      <input id="milestone-title" name="milestone_title" type="text" required value="{{ .Form.Title }}"
+             {{ if .Form.TitleError }}aria-describedby="milestone-title-error" aria-invalid="true"{{ end }}>
+      {{ if .Form.TitleError }}
+      <span id="milestone-title-error" class="field-error">{{ .Form.TitleError }}</span>
+      {{ end }}
+    </p>
+
+    <p>
+      <label for="milestone-description">{{ T "milestones.description" }}</label>
+      <input id="milestone-description" name="milestone_description" type="text">
+    </p>
+
+    <p>
+      <label for="milestone-due">{{ T "milestones.due" }}</label>
+      <input id="milestone-due" name="milestone_due_on" type="text" value="{{ .Form.DueDate }}"
+             placeholder="2026-10-14"
+             aria-describedby="milestone-due-hint{{ if .Form.DueError }} milestone-due-error{{ end }}"
+             {{ if .Form.DueError }}aria-invalid="true"{{ end }}>
+      <span id="milestone-due-hint" class="hint">{{ T "milestones.due_hint" }}</span>
+      {{ if .Form.DueError }}
+      <span id="milestone-due-error" class="field-error">{{ .Form.DueError }}</span>
+      {{ end }}
+    </p>
+
+    <p><button type="submit">{{ T "milestones.create_submit" }}</button></p>
+  </form>
+  {{ end }}
+</article>
+{{ end }}

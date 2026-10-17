@@ -1,0 +1,23 @@
+﻿{{- /* The commit list for a ref, optionally filtered to a path. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ .FullName }}</h1>
+  <p>{{ T "commits.heading" .Revision }}</p>
+  <p>{{ T "repo.your_permission" .Permission }}</p>
+  {{ if .Path }}<p>{{ T "commits.filtered_by" .Path }}</p>{{ end }}
+
+  {{ if .Commits }}
+  <ol>
+  {{ range .Commits }}
+    <li>
+      <a href="{{ .Href }}">{{ .Message }}</a>
+      <p>{{ T "commit.by" .AuthorName .AuthoredAt }}</p>
+    </li>
+  {{ end }}
+  </ol>
+  {{ if .MoreHref }}<p>{{ T "commits.load_more_hint" }} <a href="{{ .MoreHref }}">{{ T "commits.next_page" }}</a></p>{{ end }}
+  {{ else }}
+  <p>{{ T "commits.empty" }}</p>
+  {{ end }}
+</article>
+{{ end }}

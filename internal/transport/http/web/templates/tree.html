@@ -1,0 +1,41 @@
+﻿{{- /*
+  The repository tree page.
+
+  It defines `content` and delegates the listing itself to the shared `tree`
+  partial, so the overview and this page render a directory identically rather
+  than drifting apart.
+*/ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ .FullName }}</h1>
+  <p>{{ T "repo.your_permission" .Permission }}</p>
+  {{ if .ParentHref }}<p><a href="{{ .ParentHref }}">{{ T "tree.parent_link" }}</a></p>{{ end }}
+  {{ template "tree" . }}
+</article>
+{{ end }}
+
+{{- /* The shared listing, used by this page and by the overview. */ -}}
+{{ define "tree" }}
+{{ if .Entries }}
+<table>
+  <caption>{{ T "tree.heading" .Revision }}</caption>
+  <thead>
+    <tr>
+      <th scope="col">{{ T "tree.column.name" }}</th>
+      <th scope="col">{{ T "tree.column.size" }}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{ range .Entries }}
+    <tr>
+      <td><a href="{{ .Href }}">{{ .Name }}</a> <span class="entry-type">{{ .TypeLabel }}</span></td>
+      <td>{{ if .ShowSize }}{{ .Size }}{{ end }}</td>
+    </tr>
+  {{ end }}
+  </tbody>
+</table>
+<p>{{ T "tree.sort_notice" }}</p>
+{{ else }}
+<p>{{ T "tree.empty_directory" }}</p>
+{{ end }}
+{{ end }}

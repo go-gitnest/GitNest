@@ -1,0 +1,269 @@
+/*
+  The stylesheet for the server-rendered read surfaces.
+
+  It is embedded in the binary and served from this instance rather than built by
+  Vite, for a reason worth stating: these pages are the ones
+  docs/architecture/frontend.md requires to be "complete on first byte" — a search
+  engine, a link preview, and a text browser all take this path — and this project
+  deliberately keeps them working on a checkout where the frontend has not been
+  built. Styling them from the Vite bundle would make their appearance depend on a
+  Node build, which is a dependency these pages do not otherwise have.
+
+  ## One token set
+
+  The `:root` block below is the design token set. It is **the same set** the
+  interactive surfaces use in `web/src/styles.css`, and a Go test asserts the two
+  agree value for value — so "both driven by one token set"
+  (docs/architecture/frontend.md, Styling) is machine-checked rather than
+  aspirational. A change to one without the other fails the build.
+
+  ## Both themes from one set
+
+  The tokens are declared once for the light theme and once for the dark theme, and
+  every rule below refers to a token rather than to a colour. Neither theme is a
+  variant of the other: the dark block restates the same names with values chosen
+  for a dark background.
+
+  `color-scheme` is set so the browser's own furniture — form controls, scrollbars —
+  matches, which a token set alone cannot reach.
+
+  The dark block also applies under `[data-theme="dark"]`, so a future theme toggle
+  can override the operating system's preference without a second stylesheet. A page
+  that sets neither attribute follows the reader's system setting, which is the
+  documented default.
+
+  ## Contrast
+
+  Every foreground token meets WCAG AA against the surface it is used on: 4.5:1 for
+  body text and 3:1 for the muted and border tokens that carry structure rather than
+  meaning. A Go test computes the ratios from these values and fails when one drops
+  below its floor, because "contrast meets AA in both themes"
+  (docs/architecture/frontend.md, Accessibility) is a measurable claim and a review
+  comment is not a measurement.
+
+  Colour is never the only carrier of meaning. The one place a colour could have
+  been — the visibility line on a repository page — is bold text in the templates
+  instead, so it reads correctly with no colour at all.
+*/
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces. */
+  --background: #ffffff;
+  --surface: #f6f8fa;
+  --foreground: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+
+  /* Accents. `--accent` is the link and focus colour; `--danger` marks a failure and
+     is always accompanied by text, never used alone. */
+  --accent: #0969da;
+  --danger: #cf222e;
+
+  /* Metrics. */
+  --radius: 6px;
+  --measure: 72rem;
+  --gap: 1rem;
+
+  /* Type. A system stack, so a page renders without downloading a font: a webfont
+     would be a render-blocking request on the surfaces that must be complete on
+     first byte. */
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d1117;
+    --surface: #151b23;
+    --foreground: #e6edf3;
+    --muted: #9198a1;
+    --border: #3d444d;
+    --accent: #4493f8;
+    --danger: #f85149;
+  }
+}
+
+/* An explicit choice wins over the system preference, so a future toggle needs no
+   second sheet. Both blocks restate every colour so the override is complete. */
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --surface: #f6f8fa;
+  --foreground: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --accent: #0969da;
+  --danger: #cf222e;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0d1117;
+  --surface: #151b23;
+  --foreground: #e6edf3;
+  --muted: #9198a1;
+  --border: #3d444d;
+  --accent: #4493f8;
+  --danger: #f85149;
+}
+
+/* Layout ------------------------------------------------------------------------ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  /* A long repository path or commit subject must not make the page scroll
+     sideways on a phone. */
+  overflow-wrap: break-word;
+}
+
+header, footer, main {
+  margin: 0 auto;
+  max-width: var(--measure);
+  padding: var(--gap);
+}
+
+header { padding-bottom: 0; }
+footer { padding-top: 0; color: var(--muted); border-top: 1px solid var(--border); }
+
+main { padding-top: calc(var(--gap) / 2); }
+
+nav a { color: var(--accent); text-decoration: none; font-weight: 600; }
+nav a:hover { text-decoration: underline; }
+
+h1 { font-size: 1.5rem; margin: 0 0 calc(var(--gap) / 2); }
+h2 { font-size: 1.17rem; margin: calc(var(--gap) * 1.5) 0 calc(var(--gap) / 2); }
+
+a { color: var(--accent); }
+a:hover { text-decoration: underline; }
+
+/* A focus indicator is never removed. It is the only way a keyboard user can tell
+   where they are, and `:focus-visible` shows it for keyboard focus without putting a
+   ring on a mouse click. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Skip link --------------------------------------------------------------------
+
+   The first focusable element on every page, positioned off-screen until focused.
+   `frontend.md` requires a skip mechanism, and `position: absolute` with a negative
+   offset is used rather than `display: none`, because a hidden element cannot be
+   focused. */
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--background);
+  color: var(--accent);
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 1;
+}
+
+.skip-link:focus { left: 0; }
+
+/* Repository tree ---------------------------------------------------------------
+
+   The listing is a real <table> with a <caption>, so a screen reader announces the
+   ref it is showing and the meaning of each column. That markup is already in the
+   template; the rules here only present it. */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--gap);
+}
+
+caption {
+  text-align: left;
+  color: var(--muted);
+  padding-bottom: 0.5rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+th { font-weight: 600; border-bottom-width: 2px; }
+
+/* The size column is the narrow one, so it does not take half the row on a wide
+   screen. The template emits it second in both the heading and the rows. */
+th:last-child, td:last-child { width: 8rem; text-align: right; }
+
+.entry-type {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+/* File and commit content -------------------------------------------------------
+
+   `pre` carries file contents and diff-shaped output. It scrolls rather than wraps,
+   because a wrapped source line is harder to read than a scrolled one, and it is
+   the one place a horizontal scroll is the right answer. */
+
+pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0 0 var(--gap);
+}
+
+/* A code span inside prose inherits the body font size, so it reads as part of the
+   sentence rather than as a block. */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+ol { padding-left: 1.5rem; }
+li { margin-bottom: 0.5rem; }
+
+/* Commit metadata is secondary to its subject, so it is muted and smaller. */
+li > span, li > time { color: var(--muted); font-size: 0.9rem; }
+
+/* Error pages -------------------------------------------------------------------
+
+   A refusal is stated in text with an `<h1>`, so it is announced. The danger token is
+   not used here: these pages carry no colour-only signal. */
+
+main > h1 + p { color: var(--foreground); }
+
+/* Motion respects the reader's preference. Nothing here animates today; the rule
+   exists so a future addition inherits the preference rather than overriding it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Printing ---------------------------------------------------------------------- */
+
+@media print {
+  /* A tree page printed from a script should show its links rather than hide them
+     behind the accent colour, which most printers reduce to grey. */
+  a { color: inherit; text-decoration: underline; }
+  header nav, footer { display: none; }
+  pre { border: 1px solid var(--border); }
+}

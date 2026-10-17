@@ -1,0 +1,28 @@
+[Unit]
+Description=GitNest (web, API, Git over HTTP, webhooks)
+Documentation=https://github.com/go-gitnest/GitNest
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=gitnest
+Group=gitnest
+EnvironmentFile=/etc/gitnest/gitnest.env
+ExecStart=/usr/local/bin/gitnest serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+StateDirectory=gitnest
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gitnest
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=65536
+AmbientCapabilities=
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

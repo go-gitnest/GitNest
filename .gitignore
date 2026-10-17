@@ -1,14 +1,32 @@
+# Node dependencies. Never committed: `npm ci` rebuilds them from
+# web/package-lock.json, which is committed, and the tree includes platform
+# binaries that must not be pinned to one machine.
+web/node_modules/
+
+# Frontend build and test output that is not the build's own dist
+web/coverage/
+web/.vite/
+web/*.tsbuildinfo
+
 # Go build output
 /bin/
 
-# Built React assets; generated during a release build
-web/dist/
+# Built React assets; generated during a release build.
+#
+# The placeholder is committed and the build output is not, because `go build`
+# embeds this directory: without a file present, the embed pattern matches
+# nothing and the build fails on a checkout where the frontend has not been built.
+web/dist/*
+!web/dist/.gitkeep
 
 # Local runtime data
 /repositories/
 
+# Recovery sets are the most sensitive data the instance holds and are never
+# committed. The default the documentation uses is outside the tree; this is a
+# second line of defence for a set taken during development.
+/backups/
+
 # Local development scratch data (Go build caches, temporary database clusters)
 /.tmp/
 
-# I dont need it now
-/docs/

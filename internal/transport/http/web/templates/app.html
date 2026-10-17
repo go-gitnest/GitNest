@@ -1,0 +1,49 @@
+{{- /*
+  The mount point for an interactive surface.
+
+  It is server-rendered HTML, and it is deliberately tiny: the shell carries the
+  document, and the client bundle fills the element. Two consequences follow from
+  the frontend document and are implemented here:
+
+    * The shell says something before the bundle runs. `app.loading` is what a
+      reader sees while the module loads, and the block inside <noscript> is what
+      they see if it never does — so a page is never blank for a reason the
+      reader cannot act on.
+    * The strings come from the catalogue by identifier rather than from a
+      literal, and they travel to the client in a JSON island for the same
+      reason: one message namespace, translated once.
+
+  The island is a `<script type="application/json">` element rather than an
+  inline script, so no executable code is assembled from data and the content
+  security policy needs no exception for it.
+*/ -}}
+<!DOCTYPE html>
+<html lang="{{ .Locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ .Title }}</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="{{ .CanonicalURL }}">
+{{ range .ModulePreloads }}<link rel="modulepreload" href="{{ . }}">
+{{ end }}{{ range .StyleSheets }}<link rel="stylesheet" href="{{ . }}">
+{{ end }}</head>
+<body>
+<a class="skip-link" href="#content">{{ T "nav.skip_to_content" }}</a>
+<header>
+  <nav aria-label="{{ T "nav.repositories" }}">
+    <a href="/">{{ T "app.name" }}</a>
+  </nav>
+</header>
+<main id="content">
+  <div id="root">
+    <p>{{ T "app.loading" }}</p>
+  </div>
+  <noscript>
+    <p>{{ T "app.no_script" }}</p>
+  </noscript>
+</main>
+<script type="application/json" id="gitnest-boot">{{ .BootJSON }}</script>
+<script type="module" src="{{ .EntryScript }}"></script>
+</body>
+</html>

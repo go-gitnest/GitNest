@@ -1,0 +1,13 @@
+{{- /*
+  The not-found and unavailable page.
+
+  It is one template for both, because the two share a shape and differ only in
+  their message. It renders inside the same layout as every other page, so a
+  reader who follows a stale link still gets a usable page with the navigation.
+*/ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ .Title }}</h1>
+  <p>{{ .ErrorBody }}</p>
+</article>
+{{ end }}

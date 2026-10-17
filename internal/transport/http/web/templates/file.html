@@ -1,0 +1,23 @@
+﻿{{- /* The file view: the path, the ref, and the file's text escaped inside a <pre>. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ .FullName }}</h1>
+  <p>{{ T "file.heading" .Path .Revision }}</p>
+  <p>{{ T "repo.your_permission" .Permission }}</p>
+
+  {{ if .ParentHref }}<p><a href="{{ .ParentHref }}">{{ T "tree.parent_link" }}</a></p>{{ end }}
+
+  {{ if .Binary }}
+  <p>{{ T "file.binary" }}</p>
+  {{ else }}
+  {{- /*
+    Source is escaped text: html/template escapes the value, and no repository
+    content is ever interpreted as markup. This is the control the acceptance
+    criterion names, and the test asserts it with a file whose content is a
+    script tag.
+  */ -}}
+  <pre><code>{{ .Content }}</code></pre>
+  {{ end }}
+  <p>{{ T "file.bytes_suffix" .Size }}</p>
+</article>
+{{ end }}

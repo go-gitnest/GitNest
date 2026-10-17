@@ -1,0 +1,34 @@
+# Local development database.
+#
+#   docker compose up -d postgres    # start it in the background
+#   docker compose ps                # wait until the service reports healthy
+#   docker compose down              # stop it, keeping the data volume
+#   docker compose down -v           # stop it and delete all local database data
+#
+# The user, password, database, and published port match the compiled default of
+# GITNEST_DATABASE_URL, so the service connects with no extra configuration.
+# internal/config holds a test that fails when the two drift apart, and the
+# README documents the same four commands.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: gitnest
+      POSTGRES_PASSWORD: gitnest
+      POSTGRES_DB: gitnest
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # A contributor waits for "healthy" rather than guessing how long a cold
+      # start takes; `docker compose ps` shows it.
+      test: ["CMD-SHELL", "pg_isready -U gitnest -d gitnest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      # A named volume, so `docker compose down -v` has something to delete and
+      # a rebuild does not silently start from an empty database.
+      - gitnest-postgres:/var/lib/postgresql/data
+
+volumes:
+  gitnest-postgres:

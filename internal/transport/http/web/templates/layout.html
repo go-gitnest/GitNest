@@ -1,0 +1,43 @@
+﻿{{- /*
+  The base layout every read surface shares.
+
+  It carries no JavaScript, because frontend.md requires a public page to be
+  complete on first byte: a search engine, a link preview, and a text browser
+  all take this path.
+
+  Every user-visible string comes from a catalogue by identifier (frontend.md,
+  Internationalization). A literal here would be a bug, and the web package's
+  test asserts that the rendered output contains no message identifier, which is
+  how a template that forgot to call `.T` is caught.
+*/ -}}
+<!DOCTYPE html>
+<html lang="{{ .Locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ .Title }}</title>
+{{ if .NoIndex }}<meta name="robots" content="noindex, nofollow">
+{{ else }}<meta name="robots" content="index, follow">
+{{ end }}{{ if .CanonicalURL }}<link rel="canonical" href="{{ .CanonicalURL }}">
+{{ end }}{{ if .OpenGraph }}
+<meta property="og:type" content="{{ .OpenGraph.Type }}">
+<meta property="og:title" content="{{ .OpenGraph.Title }}">
+<meta property="og:description" content="{{ .OpenGraph.Description }}">
+<meta property="og:url" content="{{ .OpenGraph.URL }}">
+{{ end }}{{ range .StyleSheets }}<link rel="stylesheet" href="{{ . }}">
+{{ end }}</head>
+<body>
+<a class="skip-link" href="#content">{{ T "nav.skip_to_content" }}</a>
+<header>
+  <nav aria-label="{{ T "nav.repositories" }}">
+    <a href="/">{{ T "site.name" }}</a>
+  </nav>
+</header>
+<main id="content">
+{{ template "content" . }}
+</main>
+<footer>
+  <p>{{ T "site.name" }}</p>
+</footer>
+</body>
+</html>

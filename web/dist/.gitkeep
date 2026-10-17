@@ -1,0 +1,6 @@
+This file keeps the directory present for the Go embed directive.
+
+`web/dist` is embedded into the binary, and an embed pattern that matches nothing
+is a build failure — so without a file here, `go build ./...` fails on a checkout
+where the frontend has not been built. The real build writes its hashed bundles
+beside this file and leaves it in place.

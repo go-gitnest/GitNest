@@ -1,0 +1,40 @@
+{{- /* The repository overview: metadata, the default branch, and the README. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ .FullName }}</h1>
+  <p>{{ if .Description }}{{ .Description }}{{ else }}{{ T "repo.no_description" }}{{ end }}</p>
+  <p><strong>{{ if .IsPublic }}{{ T "repo.visibility.public" }}{{ else }}{{ T "repo.visibility.private" }}{{ end }}</strong></p>
+  <p>{{ T "repo.your_permission" .Permission }}</p>
+
+  {{ if .Empty }}
+  <p>{{ T "overview.empty_repo" }}</p>
+  {{ else }}
+  <p>{{ T "overview.default_ref" .Revision }}</p>
+  <p>{{ T "overview.clone_hint" .CloneURL }}</p>
+
+  <h2>{{ T "overview.tree_heading" }}</h2>
+  {{ template "tree" . }}
+
+  {{ if .Readme }}
+  <h2>{{ .Readme.Path }}</h2>
+  {{- /*
+    A Markdown README is rendered, and its HTML is the sanitizer's output: raw HTML in the
+    document never becomes an element, and the allowlist decides what may appear. A README
+    in any other format is shown as escaped text inside a <pre>, because rendering a plain
+    text file as Markdown would turn a line beginning with a marker character into emphasis
+    or a heading, and the reader would see something the author did not write.
+
+    `.Rendered` is placed as element content only. It must never reach an attribute, a URL,
+    or a script, where the sanitizer's element allowlist would not apply.
+  */ -}}
+  {{ if .Readme.Rendered }}
+  <div class="readme">{{ .Readme.Rendered }}</div>
+  {{ else }}
+  <pre><code>{{ .Readme.Content }}</code></pre>
+  {{ end }}
+  {{ else }}
+  <p>{{ T "overview.no_readme" }}</p>
+  {{ end }}
+  {{ end }}
+</article>
+{{ end }}

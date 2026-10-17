@@ -1,0 +1,97 @@
+{{- /* The repository's labels, with the management controls for an administrator. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ T "labels.heading" }} — {{ .FullName }}</h1>
+
+  {{ if eq .Outcome "saved" }}<p role="status" class="status">{{ T "issues.action.saved" }}</p>{{ end }}
+
+  {{- /*
+    The list. The colour is shown as **text**, not as a swatch, and two rules in `frontend.md` decide
+    that: "No inline style strings assembled from user data" rules out a `style` attribute, and
+    "Colour is never the only carrier of meaning" rules out making it the only distinction between two
+    labels. So `#ff0000` appears as the value a reader could copy, beside the name.
+  */ -}}
+  {{ if .Labels }}
+  <ul>
+    {{ range .Labels }}
+    <li>
+      <a href="{{ .Href }}">{{ .Name }}</a>
+      <span class="label-color">{{ .ColorText }}</span>
+      <span>{{ T "labels.issue_count" .IssueCount }}</span>
+      {{ if .Description }}<span>{{ .Description }}</span>{{ end }}
+
+      {{- /*
+        Deleting is a form, so it works without script. The hint states that the issues are not deleted,
+        because that is the consequence a reader is most likely to get wrong — the acceptance criterion
+        is exactly that the attachments go and the issues do not.
+      */ -}}
+      {{ if .CanManage }}
+      <form method="post" action="{{ $.Action }}">
+        <input type="hidden" name="csrf_token" value="{{ $.Form.CSRF }}">
+        <input type="hidden" name="action" value="label.delete">
+        <input type="hidden" name="label_name" value="{{ .Name }}">
+        <span class="hint">{{ T "labels.delete_hint" }}</span>
+        <button type="submit">{{ T "labels.delete" }}</button>
+      </form>
+      {{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ else }}
+  <p>{{ T "labels.empty" }}</p>
+  {{ end }}
+
+  {{- /*
+    The creation form is offered only when the reader may manage labels, which needs repository admin —
+    and only when a CSRF token was issued, because a form that cannot be submitted is not offered.
+  */ -}}
+  {{ if .Form.CanManage }}
+  <h2>{{ T "labels.create" }}</h2>
+  {{- /*
+    The summary exists whenever **anything** failed, including a refusal tied to one field. A name
+    conflict produces a field-level message and no form-level one, so a page that announced only the
+    latter would leave a screen-reader user with no indication that the submission was refused — the
+    same defect the issue forms carried, and `frontend.md` requires an error to be both announced and
+    tied to its field.
+  */ -}}
+  {{ if or .Form.Error .Form.NameError .Form.ColorError }}
+  <div role="alert" class="error-summary">
+    {{ if .Form.Error }}{{ .Form.Error }}{{ else if .Form.NameError }}{{ .Form.NameError }}{{ else }}{{ .Form.ColorError }}{{ end }}
+  </div>
+  {{ end }}
+
+  <form method="post" action="{{ .Action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ .Form.CSRF }}">
+    <input type="hidden" name="action" value="label.create">
+
+    <p>
+      <label for="label-name">{{ T "labels.name" }}</label>
+      <input id="label-name" name="label_name" type="text" required value="{{ .Form.Name }}"
+             {{ if .Form.NameError }}aria-describedby="label-name-error" aria-invalid="true"{{ end }}>
+      {{ if .Form.NameError }}
+      <span id="label-name-error" class="field-error">{{ .Form.NameError }}</span>
+      {{ end }}
+    </p>
+
+    <p>
+      <label for="label-color">{{ T "labels.color" }}</label>
+      <input id="label-color" name="label_color" type="text" required value="{{ .Form.Color }}"
+             placeholder="ff0000"
+             aria-describedby="label-color-hint{{ if .Form.ColorError }} label-color-error{{ end }}"
+             {{ if .Form.ColorError }}aria-invalid="true"{{ end }}>
+      <span id="label-color-hint" class="hint">{{ T "labels.color_hint" }}</span>
+      {{ if .Form.ColorError }}
+      <span id="label-color-error" class="field-error">{{ .Form.ColorError }}</span>
+      {{ end }}
+    </p>
+
+    <p>
+      <label for="label-description">{{ T "labels.description" }}</label>
+      <input id="label-description" name="label_description" type="text">
+    </p>
+
+    <p><button type="submit">{{ T "labels.create_submit" }}</button></p>
+  </form>
+  {{ end }}
+</article>
+{{ end }}

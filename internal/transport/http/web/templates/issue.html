@@ -1,0 +1,341 @@
+{{- /* One issue: its title, its rendered body, its close state, its controls, and its history. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ T "issues.number" .Issue.Number }} {{ .Issue.Title }}</h1>
+  <p>
+    {{ if eq .Issue.State "open" }}
+    <strong>{{ T "issues.state.open" }}</strong>
+    {{ else }}
+    <strong>{{ T "issues.state.closed" }}</strong>
+    {{ end }}
+    {{ if .Issue.AuthorName }}<span>{{ T "issues.by" }} {{ .Issue.AuthorName }}</span>{{ end }}
+    {{ if .Issue.ClosedByName }}<span>{{ T "issues.closed_by" }} {{ .Issue.ClosedByName }}</span>{{ end }}
+  </p>
+
+  {{- /*
+    A successful change redirects here with `?outcome=saved`, so the confirmation survives the
+    redirect that stops a reload from repeating the change. It is a `status` region rather than an
+    `alert`, because it reports something that already happened.
+  */ -}}
+  {{ if .Saved }}<p role="status" class="status">{{ T "issues.action.saved" }}</p>{{ end }}
+
+  {{- /*
+    The body is the sanitizer's output, produced by W2.1's renderer: raw HTML in a document never
+    becomes an element, and the allowlist decides what may appear. `.Issue.RenderedBody` is placed as
+    element content only — it must never reach an attribute, a URL, or a script, where the element
+    allowlist would not apply.
+  */ -}}
+  <div class="issue-body">{{ .Issue.RenderedBody }}</div>
+
+  {{- /*
+    The controls are forms, so every operation works with scripting disabled. `.Form.CanChange` is
+    computed from the shared access decision, so a reader who may not change the issue is shown the
+    issue rather than a form that would be refused on submit.
+  */ -}}
+  {{ if .Form.CanChange }}
+  <section>
+    <h2>{{ T "issues.form.edit_legend" }}</h2>
+
+    {{- /*
+      The summary exists whenever anything failed, **including a field-only refusal**. A title that
+      is too long produces no form-level message, and a page that then announced nothing would leave
+      a screen-reader user with no indication that the submission was refused — which is what
+      `frontend.md` forbids when it requires an error to be both announced and tied to its field.
+      The message appears twice by design: here, and beside the input it belongs to.
+    */ -}}
+    {{ if or .Form.Error .Form.TitleError }}
+    <div role="alert" class="error-summary">
+      {{ if .Form.Error }}{{ .Form.Error }}{{ else }}{{ .Form.TitleError }}{{ end }}
+    </div>
+    {{ end }}
+
+    <form method="post" action="{{ .Action }}" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ .Form.CSRF }}">
+      <input type="hidden" name="action" value="edit">
+      {{- /*
+        The version this page was rendered from. It is what makes a concurrent edit a visible
+        conflict rather than a silent overwrite: the server compares it against the stored row, and
+        a page left open while somebody else edited is refused with the stored text shown.
+      */ -}}
+      <input type="hidden" name="version" value="{{ .Form.Version }}">
+
+      <p>
+        <label for="issue-edit-title">{{ T "issues.form.title" }}</label>
+        <input id="issue-edit-title" name="title" type="text" required value="{{ .Form.Title }}"
+               {{ if .Form.TitleError }}aria-describedby="issue-edit-title-error" aria-invalid="true"{{ end }}>
+        {{ if .Form.TitleError }}
+        <span id="issue-edit-title-error" class="field-error">{{ .Form.TitleError }}</span>
+        {{ end }}
+      </p>
+
+      <p>
+        <label for="issue-edit-body">{{ T "issues.form.body" }}</label>
+        <textarea id="issue-edit-body" name="body" rows="10">{{ .Form.Body }}</textarea>
+      </p>
+
+      <p><button type="submit">{{ T "issues.form.save" }}</button></p>
+    </form>
+
+    <form method="post" action="{{ .Action }}">
+      <input type="hidden" name="csrf_token" value="{{ .Form.CSRF }}">
+      {{ if eq .Issue.State "open" }}
+      <input type="hidden" name="action" value="close">
+      <p><button type="submit">{{ T "issues.action.close" }}</button></p>
+      {{ else }}
+      <input type="hidden" name="action" value="reopen">
+      <p><button type="submit">{{ T "issues.action.reopen" }}</button></p>
+      {{ end }}
+    </form>
+
+    {{- /*
+      Deletion is offered only to a repository writer, which is narrower than the edit allowance: an
+      issue's author may edit and close it but not remove the record of the discussion. It carries a
+      confirmation step in the text rather than a scripted dialog, so it works without script.
+    */ -}}
+    {{ if .Form.CanDelete }}
+    <form method="post" action="{{ .Action }}">
+      <input type="hidden" name="csrf_token" value="{{ .Form.CSRF }}">
+      <input type="hidden" name="action" value="delete">
+      <p class="hint">{{ T "issues.action.delete_hint" }}</p>
+      <p><button type="submit">{{ T "issues.action.delete" }}</button></p>
+    </form>
+    {{ end }}
+  </section>
+  {{ end }}
+
+  <h2>{{ T "issues.history" }}</h2>
+  {{- /*
+    The history is the audit ledger, which is the only record of a state change: there is no separate
+    revision table, because two records of one change drift. The records have no foreign key to the
+    issue, so this history survives the issue's own deletion.
+  */ -}}
+  {{ if .History }}
+  <ol>
+    {{ range .History }}
+    <li>
+      <span>{{ .Action }}</span>
+      {{ if .ActorName }}<span>{{ .ActorName }}</span>{{ end }}
+      <time datetime="{{ .At }}">{{ .At }}</time>
+      {{ if .Transition }}<span>{{ .Transition }}</span>{{ end }}
+    </li>
+    {{ end }}
+  </ol>
+  {{ else }}
+  <p>{{ T "issues.no_history" }}</p>
+  {{ end }}
+
+  <h2>{{ T "milestones.on_issue" }}</h2>
+  {{- /*
+    The issue's milestone. The counts are text rather than a bar and "overdue" is a word rather than a red
+    date, for the two `frontend.md` rules the milestone list records.
+  */ -}}
+  {{ if .Milestones.Error }}
+  <div role="alert" class="error-summary">{{ .Milestones.Error }}</div>
+  {{ end }}
+
+  {{ if .Milestones.Milestone }}
+  <p>
+    <a href="{{ .Milestones.Milestone.Href }}">{{ .Milestones.Milestone.Title }}</a>
+    <span>{{ T "milestones.progress" .Milestones.Milestone.Counts.Closed .Milestones.Milestone.Counts.Total .Milestones.Milestone.Counts.PercentComplete }}</span>
+    {{ if .Milestones.Milestone.Overdue }}<strong>{{ T "milestones.overdue" }}</strong>{{ end }}
+  </p>
+  {{ if .Milestones.CanChange }}
+  <form method="post" action="{{ .Milestones.Action }}">
+    <input type="hidden" name="csrf_token" value="{{ .Milestones.CSRF }}">
+    <input type="hidden" name="action" value="milestone.detach">
+    <p><button type="submit">{{ T "milestones.remove" }}</button></p>
+  </form>
+  {{ end }}
+  {{ else }}
+  <p>{{ T "milestones.none_on_issue" }}</p>
+  {{ end }}
+
+  {{- /*
+    Moving the issue to a milestone. **Only open milestones are offered**, because a closed one would refuse
+    the attachment — so offering it would be offering a choice that cannot succeed.
+  */ -}}
+  {{ if and .Milestones.CanChange .Milestones.Choices }}
+  <form method="post" action="{{ .Milestones.Action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ .Milestones.CSRF }}">
+    <input type="hidden" name="action" value="milestone.attach">
+    <p>
+      <label for="issue-milestone">{{ T "milestones.apply" }}</label>
+      <select id="issue-milestone" name="milestone_number"
+              {{ if .Milestones.NumberError }}aria-describedby="issue-milestone-error" aria-invalid="true"{{ end }}>
+        {{ range .Milestones.Choices }}
+        <option value="{{ .Number }}">{{ .Title }}</option>
+        {{ end }}
+      </select>
+      {{ if .Milestones.NumberError }}
+      <span id="issue-milestone-error" class="field-error">{{ .Milestones.NumberError }}</span>
+      {{ end }}
+    </p>
+    <p><button type="submit">{{ T "milestones.apply_submit" }}</button></p>
+  </form>
+  {{ end }}
+
+  <h2>{{ T "labels.on_issue" }}</h2>
+  {{- /*
+    The issue's labels. The colour is text rather than a swatch, for the two reasons the label list
+    records: `frontend.md` forbids an inline style assembled from user data, and requires that colour
+    never be the only carrier of meaning.
+
+    Each label links to the per-label issue list, which is what `urls-and-identifiers.md` §2.4 lists as
+    part of the label routes.
+  */ -}}
+  {{ if .Labels.Error }}
+  <div role="alert" class="error-summary">{{ .Labels.Error }}</div>
+  {{ end }}
+
+  {{ if .Labels.Labels }}
+  <ul>
+    {{ range .Labels.Labels }}
+    <li>
+      <a href="{{ .Href }}">{{ .Name }}</a>
+      <span class="label-color">{{ .ColorText }}</span>
+      {{ if .Description }}<span>{{ .Description }}</span>{{ end }}
+      {{ if $.Labels.CanApply }}
+      <form method="post" action="{{ $.Labels.Action }}">
+        <input type="hidden" name="csrf_token" value="{{ $.Labels.CSRF }}">
+        <input type="hidden" name="action" value="label.detach">
+        <input type="hidden" name="label_name" value="{{ .Name }}">
+        <button type="submit">{{ T "labels.remove" }}</button>
+      </form>
+      {{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ else }}
+  <p>{{ T "labels.none_on_issue" }}</p>
+  {{ end }}
+
+  {{- /*
+    Applying a label needs repository write, which is lower than managing one: it changes an issue's
+    metadata rather than the repository's configuration. The form names the label by its name, because
+    that is how a label is addressed.
+  */ -}}
+  {{ if .Labels.CanApply }}
+  <form method="post" action="{{ .Labels.Action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ .Labels.CSRF }}">
+    <input type="hidden" name="action" value="label.attach">
+    <p>
+      <label for="issue-label-name">{{ T "labels.apply" }}</label>
+      <input id="issue-label-name" name="label_name" type="text" value="{{ .Labels.Name }}"
+             {{ if .Labels.NameError }}aria-describedby="issue-label-error" aria-invalid="true"{{ end }}>
+      {{ if .Labels.NameError }}
+      <span id="issue-label-error" class="field-error">{{ .Labels.NameError }}</span>
+      {{ end }}
+    </p>
+    <p><button type="submit">{{ T "labels.apply_submit" }}</button></p>
+  </form>
+  {{ end }}
+
+  <h2>{{ T "comments.heading" }}</h2>
+
+  {{- /*
+    The conversation. Every control is a form, so the whole thing works with scripting disabled.
+
+    A deleted comment is a **tombstone**: its row keeps the comment's place in the conversation, and
+    its body was cleared when it was deleted, so there is nothing to show and nothing to leak. That is
+    what makes "deleted" mean the words are gone rather than merely hidden.
+  */ -}}
+  {{ if .Comments.Error }}
+  <div role="alert" class="error-summary">{{ .Comments.Error }}</div>
+  {{ end }}
+
+  {{ if .CommentList }}
+  <ol class="comments">
+    {{ range .CommentList }}
+    <li id="issuecomment-{{ .Number }}">
+      {{ if .Deleted }}
+      <p><em>{{ T "comments.deleted_tombstone" }}</em></p>
+      {{ else }}
+      <p>
+        {{ if .AuthorName }}<span>{{ T "comments.by" .AuthorName }}</span>{{ end }}
+        <time datetime="{{ .CreatedAt }}">{{ .CreatedAt }}</time>
+        {{- /* "edited" is a fact the reader is told, not a value they compute from timestamps. */ -}}
+        {{ if .Edited }}<span>({{ T "comments.edited" }})</span>{{ end }}
+      </p>
+
+      {{- /*
+        The body is W2.1's sanitizer output, placed as element content only — it must never reach an
+        attribute, a URL, or a script, where the element allowlist would not apply.
+      */ -}}
+      <div class="comment-body">{{ .Body }}</div>
+
+      {{- /*
+        W2.3 requires that an edit "does not rewrite history visible in the UI", so the previous
+        bodies are shown rather than only the fact that something changed. The text comes from the
+        revision table, which holds the body as it was **before** each edit.
+      */ -}}
+      {{ if .History }}
+      <details>
+        <summary>{{ T "comments.history" }}</summary>
+        <ol>
+          {{ range .History }}
+          <li>
+            <p>
+              {{ if .EditorName }}<span>{{ T "comments.history_by" .EditorName }}</span>{{ end }}
+              <time datetime="{{ .CreatedAt }}">{{ .CreatedAt }}</time>
+            </p>
+            <div class="comment-body">{{ .Body }}</div>
+          </li>
+          {{ end }}
+        </ol>
+      </details>
+      {{ end }}
+
+      {{ if .CanChange }}
+      <form method="post" action="{{ $.Comments.Action }}" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ $.Comments.CSRF }}">
+        <input type="hidden" name="action" value="comment.edit">
+        <input type="hidden" name="comment_number" value="{{ .Number }}">
+        {{- /*
+          The version this page was rendered from, so a concurrent edit is refused with the stored text
+          shown rather than overwriting silently.
+        */ -}}
+        <input type="hidden" name="comment_version" value="{{ .Version }}">
+        <p>
+          <label for="comment-{{ .Number }}-body">{{ T "comments.edit" }}</label>
+          <textarea id="comment-{{ .Number }}-body" name="comment_body" rows="4">{{ .EditBody }}</textarea>
+        </p>
+        <p><button type="submit">{{ T "comments.save" }}</button></p>
+      </form>
+      {{ end }}
+
+      {{ if .CanDelete }}
+      <form method="post" action="{{ $.Comments.Action }}">
+        <input type="hidden" name="csrf_token" value="{{ $.Comments.CSRF }}">
+        <input type="hidden" name="action" value="comment.delete">
+        <input type="hidden" name="comment_number" value="{{ .Number }}">
+        <p><button type="submit">{{ T "comments.delete" }}</button></p>
+      </form>
+      {{ end }}
+      {{ end }}
+    </li>
+    {{ end }}
+  </ol>
+  {{ else }}
+  <p>{{ T "comments.none" }}</p>
+  {{ end }}
+
+  {{ if .Comments.CanWrite }}
+  <h3>{{ T "comments.write" }}</h3>
+  {{ if .Comments.BodyError }}
+  <p id="comment-body-error" class="field-error">{{ .Comments.BodyError }}</p>
+  {{ end }}
+  <form method="post" action="{{ .Comments.Action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ .Comments.CSRF }}">
+    <input type="hidden" name="action" value="comment.create">
+    <p>
+      <label for="comment-new-body">{{ T "comments.body" }}</label>
+      <textarea id="comment-new-body" name="comment_body" rows="4"
+                {{ if .Comments.BodyError }}aria-describedby="comment-body-error" aria-invalid="true"{{ end }}>{{ .Comments.Body }}</textarea>
+    </p>
+    <p><button type="submit">{{ T "comments.submit" }}</button></p>
+  </form>
+  {{ end }}
+
+  <p><a href="{{ .ListHref }}">{{ T "issues.heading" }}</a></p>
+</article>
+{{ end }}

@@ -1,0 +1,44 @@
+{{- /* The issue list: one repository's issues, newest first, with a state filter. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ T "issues.heading" }} — {{ .FullName }}</h1>
+
+  <nav aria-label="{{ T "issues.heading" }}">
+    {{- /*
+      The filter is a GET link rather than a form, so it works without script and the page
+      a reader is on is addressable. `State` is the filter in force, which the server
+      validated: an unknown value never reaches here.
+    */ -}}
+    {{ if eq .State "" }}<strong>{{ T "issues.filter.all" }}</strong>{{ else }}<a href="{{ .ListHref }}">{{ T "issues.filter.all" }}</a>{{ end }}
+    {{ if eq .State "open" }}<strong>{{ T "issues.filter.open" }}</strong>{{ else }}<a href="{{ .ListHref }}?state=open">{{ T "issues.filter.open" }}</a>{{ end }}
+    {{ if eq .State "closed" }}<strong>{{ T "issues.filter.closed" }}</strong>{{ else }}<a href="{{ .ListHref }}?state=closed">{{ T "issues.filter.closed" }}</a>{{ end }}
+  </nav>
+
+  {{- /*
+    The creation link is offered only to a signed-in reader, because an issue needs an author. The
+    server decides that, not the template: `NewHref` is empty for an anonymous caller, so a reader
+    who cannot file an issue is never sent to a form that would refuse them.
+  */ -}}
+  {{ if .NewHref }}<p><a href="{{ .NewHref }}">{{ T "issues.new_link" }}</a></p>{{ end }}
+
+  {{ if .Issues }}
+  <ul>
+    {{ range .Issues }}
+    <li>
+      <a href="{{ .Href }}">{{ T "issues.number" .Number }} {{ .Title }}</a>
+      {{ if eq .State "open" }}
+      <span>{{ T "issues.state.open" }}</span>
+      {{ else }}
+      <span>{{ T "issues.state.closed" }}</span>
+      {{ end }}
+      {{ if .AuthorName }}<span>{{ T "issues.by" }} {{ .AuthorName }}</span>{{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ else }}
+  <p>{{ T "issues.empty" }}</p>
+  {{ end }}
+
+  {{ if .MoreHref }}<p><a href="{{ .MoreHref }}">{{ T "issues.more" }}</a></p>{{ end }}
+</article>
+{{ end }}

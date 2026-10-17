@@ -1,0 +1,55 @@
+{{- /* The form that opens a new issue. */ -}}
+{{ define "content" }}
+<article>
+  <h1>{{ T "issues.new_title" }} — {{ .FullName }}</h1>
+
+  {{- /*
+    The form posts to the documented collection path and carries the session's CSRF token as a
+    hidden field. The token is issued per document render, so a form left open long enough for
+    another document to be loaded is refused with a message saying so — see the handler.
+
+    Neither field needs JavaScript: the whole workflow is a plain form submission, which is what
+    makes it operable by keyboard alone and usable before any bundle loads.
+  */ -}}
+  <form method="post" action="{{ .Action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ .Form.CSRF }}">
+
+    {{- /*
+      The summary exists whenever anything failed, **including a field-only refusal**. A title that
+      is too long produces no form-level message, and a page that then announced nothing would leave
+      a screen-reader user with no indication that the submission was refused — which is what
+      `frontend.md` forbids when it requires an error to be both announced and tied to its field.
+      The message appears twice by design: here, and beside the input it belongs to.
+    */ -}}
+    {{ if or .Form.Error .Form.TitleError }}
+    <div role="alert" class="error-summary">
+      {{ if .Form.Error }}{{ .Form.Error }}{{ else }}{{ .Form.TitleError }}{{ end }}
+    </div>
+    {{ end }}
+
+    <p>
+      <label for="issue-title">{{ T "issues.form.title" }}</label>
+      {{- /*
+        The error is tied to its field by `aria-describedby`, which is what `frontend.md` requires
+        when it says an error is "announced and tied to its field" — the summary above is what a
+        screen reader reaches first, and this is what puts the text beside the input.
+      */ -}}
+      <input id="issue-title" name="title" type="text" required value="{{ .Form.Title }}"
+             {{ if .Form.TitleError }}aria-describedby="issue-title-error" aria-invalid="true"{{ end }}>
+      {{ if .Form.TitleError }}
+      <span id="issue-title-error" class="field-error">{{ .Form.TitleError }}</span>
+      {{ end }}
+    </p>
+
+    <p>
+      <label for="issue-body">{{ T "issues.form.body" }}</label>
+      <textarea id="issue-body" name="body" rows="10">{{ .Form.Body }}</textarea>
+    </p>
+
+    <p>
+      <button type="submit">{{ T "issues.new_submit" }}</button>
+      <a href="{{ .ListHref }}">{{ T "issues.action.cancel" }}</a>
+    </p>
+  </form>
+</article>
+{{ end }}
